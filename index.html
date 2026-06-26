@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PROJECT: GLOBE — Penguins of Earth</title>
+  <meta name="description" content="A slow-spinning dotted globe charting where every species of penguin lives on Earth. A sandbox, for no reason except that it should exist." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- the globe -->
+  <div id="stage">
+    <canvas id="globe" role="img" aria-label="A rotating dotted globe of Earth with glowing markers at penguin colonies. Use the species buttons below to open details."></canvas>
+  </div>
+
+  <!-- chrome -->
+  <div class="chrome">
+    <div class="top">
+      <div class="brand">
+        <div class="kicker">Project · Globe</div>
+        <h1>Penguins of Earth</h1>
+        <div class="sub">A dotted planet charting where penguins live. <b>Drag to spin · tap a marker.</b></div>
+        <div class="stat-line" id="statLine">18 species · 53 colonies</div>
+      </div>
+      <div class="controls">
+        <button class="ctrl-btn" id="surpriseBtn" aria-label="Fly to a random penguin">
+          <i>↯</i> Surprise
+        </button>
+        <button class="ctrl-btn" id="threatBtn" aria-pressed="false" aria-label="Show only species threatened with extinction">
+          Threatened
+        </button>
+        <button class="theme-btn" id="themeBtn" aria-label="Toggle light and dark mode">
+          <span class="dot"></span><span id="themeLabel">Dark</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="legend" aria-hidden="true">
+      <div class="row"><span class="mk"></span><span>Penguin colony</span></div>
+      <div class="row"><span class="mk alert"></span><span>Endangered — <b>pulses faster, double ring</b></span></div>
+    </div>
+
+    <nav class="species-nav" id="speciesNav" aria-label="Penguin species"></nav>
+
+    <div class="boot" id="boot">booting orbital survey…</div>
+  </div>
+
+  <!-- hover tooltip -->
+  <div class="tip" id="tip" aria-hidden="true"></div>
+
+  <!-- species card -->
+  <aside class="card" id="card" aria-label="Species details"></aside>
+
+  <noscript style="position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:#E6EDE8;background:#0B0F0D;font-family:monospace;">
+    This globe needs JavaScript. It plots eight penguin species across a rotating Earth — purely for the joy of it.
+  </noscript>
+
+  <script src="mask.js"></script>
+  <script src="penguins.js"></script>
+  <script src="globe.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
