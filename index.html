@@ -26,6 +26,7 @@
         <h1>Penguins of Earth</h1>
         <div class="sub">A dotted planet charting where penguins live. <b>Drag to spin · tap a marker.</b></div>
         <div class="stat-line" id="statLine">18 species · 53 colonies</div>
+        <button class="potd" id="potd" aria-label="Open today's penguin"></button>
       </div>
       <div class="controls">
         <button class="ctrl-btn" id="surpriseBtn" aria-label="Fly to a random penguin">
@@ -33,6 +34,9 @@
         </button>
         <button class="ctrl-btn" id="threatBtn" aria-pressed="false" aria-label="Show only species threatened with extinction">
           Threatened
+        </button>
+        <button class="ctrl-btn icon" id="spinBtn" aria-label="Pause globe rotation">
+          <i>❚❚</i>
         </button>
         <button class="theme-btn" id="themeBtn" aria-label="Toggle light and dark mode">
           <span class="dot"></span><span id="themeLabel">Dark</span>

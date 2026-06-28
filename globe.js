@@ -16,7 +16,7 @@ function GlobeEngine(canvas, opts) {
 
   let W = 0, H = 0, dpr = 1, cx = 0, cy = 0, R = 0;
   let yaw = -60 * DEG, pitch = 12 * DEG;     // start over the Southern Ocean
-  let yawVel = 0, autoSpin = 0.0016;         // radians / frame
+  let yawVel = 0, autoSpin = 0.0012;         // radians / frame (base; scaled by spinMult)
   let dragging = false, lastX = 0, lastY = 0, lastMoveT = 0;
   let dots = [];
   let colours = readColours();
@@ -27,6 +27,8 @@ function GlobeEngine(canvas, opts) {
   let stars = [];                            // void backdrop (dark mode only)
   let sunAngle = 1.2;                        // day/night terminator phase
   const reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  let spinMult = 1;                          // rotation speed: 0 paused · 1 normal
+  let highlightId = null, highlightAnchor = null;   // species leader-line / emphasis
 
   /* ---- land dots from mask --------------------------------------- */
   function decodeMask() {
@@ -167,6 +169,7 @@ function GlobeEngine(canvas, opts) {
 
     // colony markers
     markerScreens = [];
+    const hiScreens = [];                              // front-facing markers of the highlighted species
     for (let i = 0; i < colonies.length; i++) {
       const m = colonies[i];
       const v = {
@@ -186,10 +189,13 @@ function GlobeEngine(canvas, opts) {
         continue;
       }
 
+      const isHi = highlightId != null && m.id === highlightId;
+      if (isHi) hiScreens.push({ x: p.sx, y: p.sy, name: m.species });
+
       const t = (performance.now ? performance.now() : Date.now()) / 1000;
       const pulse = 0.5 + 0.5 * Math.sin(t * (m.severity >= 3 ? 3.4 : 2) + i);
-      const hovered = i === hoverIndex;
-      const base = 3.1 * (R / 260);
+      const hovered = i === hoverIndex || isHi;
+      const base = 3.1 * (R / 260) * (isHi ? 1.4 : 1);
 
       // outer pulse ring
       ctx.strokeStyle = rgb(colours.accent, 0.12 + pulse * 0.32);
@@ -216,6 +222,29 @@ function GlobeEngine(canvas, opts) {
       ctx.shadowBlur = 0;
     }
 
+    // leader line(s) from the hovered pill to its colonies, + a name label
+    if (highlightId != null && hiScreens.length) {
+      if (highlightAnchor) {
+        ctx.strokeStyle = rgb(colours.accent, 0.5);
+        ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+        for (const h of hiScreens) {
+          ctx.beginPath();
+          ctx.moveTo(highlightAnchor.x, highlightAnchor.y);
+          ctx.lineTo(h.x, h.y);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      }
+      const h0 = hiScreens[0];
+      ctx.font = "500 12px 'JetBrains Mono', ui-monospace, monospace";
+      ctx.textAlign = "center";
+      ctx.shadowColor = colours.bg; ctx.shadowBlur = 6;
+      ctx.fillStyle = colours.accent;
+      ctx.fillText(h0.name, h0.x, h0.y - 15);
+      ctx.shadowBlur = 0;
+      ctx.textAlign = "start";
+    }
+
     if (!reduceMotion) sunAngle += 0.0011;          // slow terminator sweep
 
     // motion update
@@ -228,7 +257,7 @@ function GlobeEngine(canvas, opts) {
         pitch = target.fromPitch + (target.toPitch - target.fromPitch) * e;
         if (targetT >= 1) target = null;
       } else {
-        yaw += autoSpin + yawVel;
+        yaw += autoSpin * spinMult + yawVel;
         yawVel *= 0.94;                           // inertia decay
       }
     }
@@ -309,6 +338,8 @@ function GlobeEngine(canvas, opts) {
 
   function setTheme() { colours = readColours(); }
   function setFilter(on) { threatenedOnly = !!on; }
+  function setSpin(mult) { spinMult = mult; }
+  function setHighlight(id, anchor) { highlightId = id || null; highlightAnchor = anchor || null; }
 
   /* ---- wire up --------------------------------------------------- */
   canvas.addEventListener("pointerdown", onDown);
@@ -321,5 +352,5 @@ function GlobeEngine(canvas, opts) {
   dots = buildDots();
   requestAnimationFrame(frame);
 
-  return { flyTo, setTheme, setFilter, dotCount: () => dots.length };
+  return { flyTo, setTheme, setFilter, setSpin, setHighlight, dotCount: () => dots.length };
 }

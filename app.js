@@ -14,6 +14,9 @@
   });
 
   const byId = Object.fromEntries(PENGUINS.map((p) => [p.id, p]));
+  const isMobile = () => window.matchMedia("(max-width: 640px)").matches;
+  const potd = PENGUINS[Math.floor(Date.now() / 86400000) % PENGUINS.length];   // penguin of the day
+  let hlTimer = null;
 
   /* ---- theme ----------------------------------------------------- */
   const root = document.documentElement;
@@ -53,7 +56,18 @@
     b.textContent = sp.name;
     b.setAttribute("aria-label", `Show ${sp.name} penguin and locate it on the globe`);
     b.dataset.id = sp.id;
+    if (sp.id === potd.id) b.classList.add("today");
     b.addEventListener("click", () => openCard(sp.id));
+    // hover / focus a pill → draw a leader line from it to that species' colonies
+    const hi = () => {
+      const r = b.getBoundingClientRect();
+      globe.setHighlight(sp.id, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    };
+    const unhi = () => globe.setHighlight(null);
+    b.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") hi(); });
+    b.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") unhi(); });
+    b.addEventListener("focus", hi);
+    b.addEventListener("blur", unhi);
     nav.appendChild(b);
   });
 
@@ -87,7 +101,7 @@
       </div>
       <div class="card-body">
         <div class="index-no">SPECIES ${idx} / ${PENGUINS.length.toString().padStart(2, "0")}</div>
-        <h2>${sp.name}</h2>
+        <h2>${sp.name}${sp.id === potd.id ? ' <span class="potd-badge">★ today</span>' : ""}</h2>
         <div class="binom">${sp.binomial}</div>
 
         <dl class="stats">
@@ -118,6 +132,16 @@
     $(".locate", card).addEventListener("click", () => {
       const c = colony && colony.id === id ? colony : sp.colonies[0];
       globe.flyTo(c.lat, c.lon);
+      if (isMobile()) {                          // close the sheet so the globe is actually visible…
+        closeCard();
+        globe.setHighlight(id, null);            // …emphasise + label the species…
+        globe.setSpin(0);                        // …and hold still so the dot doesn't drift away
+        clearTimeout(hlTimer);
+        hlTimer = setTimeout(() => {
+          globe.setHighlight(null);
+          globe.setSpin(spinning ? 1 : 0);       // restore the user's spin preference
+        }, 5000);
+      }
     });
 
     // auto-fly to the colony that was clicked (or the first one)
@@ -166,6 +190,24 @@
         : statDefault;
       statLine.classList.toggle("alarm", threatOn);
     }
+  });
+
+  /* ---- penguin of the day (deterministic by date) --------------- */
+  const potdEl = $("#potd");
+  if (potdEl) {
+    potdEl.innerHTML = `<span class="star">★</span> Penguin of the day — <b>${potd.name}</b>`;
+    potdEl.addEventListener("click", () => openCard(potd.id));
+  }
+
+  /* ---- globe rotation: pause / resume --------------------------- */
+  let spinning = true;
+  const spinBtn = $("#spinBtn");
+  spinBtn.addEventListener("click", () => {
+    spinning = !spinning;
+    globe.setSpin(spinning ? 1 : 0);
+    spinBtn.innerHTML = spinning ? "<i>❚❚</i>" : "<i>▶</i>";
+    spinBtn.setAttribute("aria-label", spinning ? "Pause globe rotation" : "Resume globe rotation");
+    spinBtn.classList.toggle("active", !spinning);
   });
 
   /* ---- open from a shared #species link, and on back/forward ----- */
