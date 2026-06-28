@@ -32,6 +32,7 @@ function GlobeEngine(canvas, opts) {
   let zoom = 1, baseR = 0, panX = 0, panY = 0;      // pinch / scroll zoom + focal pan
   const pointers = new Map();                        // active touch points (for pinch)
   let pinchDist = 0;
+  let focused = null;                                // {lat,lon,name} — the located colony reticle
 
   /* ---- land dots from mask --------------------------------------- */
   function decodeMask() {
@@ -124,6 +125,31 @@ function GlobeEngine(canvas, opts) {
     zoom = nz; R = baseR * zoom;
     if (zoom <= 1.001) { zoom = 1; R = baseR; panX = 0; panY = 0; }
     clampPan();
+  }
+
+  // a "you are here" target reticle — pulsing ping + crosshair + label
+  function drawReticle(x, y, name) {
+    const now = (performance.now ? performance.now() : Date.now()) / 1000;
+    const ping = (now % 1.5) / 1.5;
+    ctx.strokeStyle = rgb(colours.accent, (1 - ping) * 0.55);   // expanding radar ping
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, 12 + ping * 30, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = rgb(colours.accent, 0.95);                // steady target ring
+    ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.stroke();
+    for (let a = 0; a < 4; a++) {                                // crosshair ticks
+      const ang = a * Math.PI / 2, dx = Math.cos(ang), dy = Math.sin(ang);
+      ctx.beginPath();
+      ctx.moveTo(x + dx * 17, y + dy * 17);
+      ctx.lineTo(x + dx * 24, y + dy * 24);
+      ctx.stroke();
+    }
+    ctx.font = "600 13px 'JetBrains Mono', ui-monospace, monospace";   // label
+    ctx.textAlign = "center";
+    ctx.shadowColor = colours.bg; ctx.shadowBlur = 8;
+    ctx.fillStyle = colours.accent;
+    ctx.fillText(name, x, y - 34);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = "start";
   }
 
   /* ---- rotate a unit vector by yaw (Y) then pitch (X) ------------ */
@@ -268,17 +294,35 @@ function GlobeEngine(canvas, opts) {
       ctx.textAlign = "start";
     }
 
+    // located colony reticle — the "you are here"
+    if (focused) {
+      const fv = {
+        x: Math.cos(focused.lat * DEG) * Math.cos(focused.lon * DEG),
+        y: Math.sin(focused.lat * DEG),
+        z: Math.cos(focused.lat * DEG) * Math.sin(focused.lon * DEG),
+      };
+      const fp = project(fv);
+      if (fp.depth > 0) drawReticle(fp.sx, fp.sy, focused.name);
+    }
+
     if (!reduceMotion) sunAngle += 0.0011;          // slow terminator sweep
 
     // motion update
     if (!dragging) {
       if (target) {
-        // ease yaw/pitch toward a target colony
-        targetT = Math.min(1, targetT + 0.022);
+        // ease yaw / pitch / zoom toward the located colony
+        targetT = Math.min(1, targetT + 0.02);
         const e = 1 - Math.pow(1 - targetT, 3);
         yaw = target.fromYaw + shortestAngle(target.fromYaw, target.toYaw) * e;
         pitch = target.fromPitch + (target.toPitch - target.fromPitch) * e;
+        if (target.toZoom != null) {
+          zoom = target.fromZoom + (target.toZoom - target.fromZoom) * e;
+          R = baseR * zoom; panX = 0; panY = 0;
+          if (zoom <= 1.001) { zoom = 1; R = baseR; }
+        }
         if (targetT >= 1) target = null;
+      } else if (focused) {
+        yaw += yawVel; yawVel *= 0.9;             // hold the located view still
       } else {
         yaw += autoSpin * spinMult + yawVel;
         yawVel *= 0.94;                           // inertia decay
@@ -376,17 +420,30 @@ function GlobeEngine(canvas, opts) {
     const rect = canvas.getBoundingClientRect();
     applyZoom(zoom * Math.pow(1.0016, -e.deltaY), e.clientX - rect.left, e.clientY - rect.top);
   }
-  function onDbl(e) {                                   // double-tap / click toggles zoom
+  function onDbl(e) {                                   // double-tap / click toggles zoom (and exits locator)
     const rect = canvas.getBoundingClientRect();
-    applyZoom(zoom > 1.05 ? 1 : 2.4, e.clientX - rect.left, e.clientY - rect.top);
+    if (focused || zoom > 1.05) clearFocus();
+    else applyZoom(2.4, e.clientX - rect.left, e.clientY - rect.top);
   }
 
   /* ---- public: fly the globe to a lat/lon ----------------------- */
-  function flyTo(lat, lon) {
-    zoom = 1; panX = 0; panY = 0; R = baseR;            // reset zoom so the fly stays centred
+  // Google-Earth style: rotate the colony to front AND zoom in, leaving a reticle on it.
+  function focusOn(lat, lon, name) {
+    focused = { lat: lat, lon: lon, name: name };
+    panX = 0; panY = 0;
     target = {
-      fromYaw: yaw, toYaw: -lon * DEG - Math.PI / 2,
-      fromPitch: pitch, toPitch: Math.max(-1.0, Math.min(1.0, -lat * DEG * 0.6)),
+      fromYaw: yaw, toYaw: lon * DEG - Math.PI / 2,                  // bring this lon to front-centre
+      fromPitch: pitch, toPitch: Math.max(-1.45, Math.min(1.45, lat * DEG)),  // and this lat to centre
+      fromZoom: zoom, toZoom: 2.4,
+    };
+    targetT = 0;
+  }
+  // exit locator mode: drop the reticle and ease back out to the overview
+  function clearFocus() {
+    focused = null;
+    target = {
+      fromYaw: yaw, toYaw: yaw, fromPitch: pitch, toPitch: pitch,
+      fromZoom: zoom, toZoom: 1,
     };
     targetT = 0;
   }
@@ -410,5 +467,5 @@ function GlobeEngine(canvas, opts) {
   dots = buildDots();
   requestAnimationFrame(frame);
 
-  return { flyTo, setTheme, setFilter, setSpin, setHighlight, dotCount: () => dots.length };
+  return { focusOn, clearFocus, setTheme, setFilter, setSpin, setHighlight, dotCount: () => dots.length };
 }

@@ -147,28 +147,23 @@
     $(".card-close", card).addEventListener("click", closeCard);
     $(".locate", card).addEventListener("click", () => {
       const c = colony && colony.id === id ? colony : sp.colonies[0];
-      globe.flyTo(c.lat, c.lon);
-      if (isMobile()) {                          // close the sheet so the globe is actually visible…
-        closeCard();
-        globe.setHighlight(id, null);            // …emphasise + label the species…
-        globe.setSpin(0);                        // …and hold still so the dot doesn't drift away
-        clearTimeout(hlTimer);
-        hlTimer = setTimeout(() => {
-          globe.setHighlight(null);
-          globe.setSpin(spinning ? 1 : 0);       // restore the user's spin preference
-        }, 5000);
-      }
+      globe.focusOn(c.lat, c.lon, sp.name);      // fly + zoom in + drop a reticle
+      if (isMobile()) hideCardPanel();           // hide the sheet so you can actually see it
     });
 
-    // auto-fly to the colony that was clicked (or the first one)
+    // fly + zoom + reticle onto the colony that was clicked (or the first one)
     const c = colony || sp.colonies[0];
-    globe.flyTo(c.lat, c.lon);
+    globe.focusOn(c.lat, c.lon, sp.name);
   }
 
-  function closeCard() {
+  function hideCardPanel() {
     card.classList.remove("open");
     document.documentElement.classList.remove("card-open");
+  }
+  function closeCard() {
+    hideCardPanel();
     activeId = null;
+    globe.clearFocus();                          // exit locator mode, ease back to overview
     history.replaceState(null, "", location.pathname + location.search);
     nav.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
   }
