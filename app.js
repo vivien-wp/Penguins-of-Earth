@@ -44,7 +44,11 @@
       tip.innerHTML = `<span class="t-sp">${m.species}</span> <span class="t-loc">· ${m.name}</span>`;
       tip.classList.add("show");
     },
+    onView: (active) => $("#resetBtn").classList.toggle("show", active),
   });
+
+  // return to the wide overview from a zoomed / located view
+  $("#resetBtn").addEventListener("click", () => globe.clearFocus());
 
   // theme is applied after globe exists so setTheme() can run
   applyTheme(localStorage.getItem("globe-theme") || "dark");
@@ -106,6 +110,7 @@
       `<i class="${i <= sp.severity ? "on" : ""}"></i>`).join("");
 
     card.innerHTML = `
+      <div class="card-grab" aria-hidden="true"></div>
       <button class="card-close" aria-label="Close">&times;</button>
       <div class="card-figure">
         <span class="sev">${sp.statusCode} <span class="sev-bar">${sevDots}</span></span>
@@ -161,9 +166,8 @@
     document.documentElement.classList.remove("card-open");
   }
   function closeCard() {
-    hideCardPanel();
+    hideCardPanel();                             // keep the located/zoomed view + reticle so you can SEE where it was
     activeId = null;
-    globe.clearFocus();                          // exit locator mode, ease back to overview
     history.replaceState(null, "", location.pathname + location.search);
     nav.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
   }
@@ -174,6 +178,40 @@
 
   // close on Escape
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeCard(); });
+
+  /* ---- swipe the mobile sheet down to dismiss (pull from the top) - */
+  let sheetStartY = null, sheetDragging = false;
+  function resetSheet() {
+    if (sheetStartY === null) return;
+    sheetStartY = null; sheetDragging = false;
+    card.style.transition = ""; card.style.transform = ""; card.style.overflowY = "";
+  }
+  card.addEventListener("pointerdown", (e) => {
+    if (!isMobile() || !card.classList.contains("open")) return;
+    if (card.scrollTop > 0) return;              // only when scrolled to the very top
+    sheetStartY = e.clientY; sheetDragging = false;
+    card.style.transition = "none";
+  });
+  card.addEventListener("pointermove", (e) => {
+    if (sheetStartY === null) return;
+    const dy = e.clientY - sheetStartY;
+    if (dy > 0) {
+      sheetDragging = true;
+      card.style.overflowY = "hidden";           // stop inner scroll while pulling the sheet
+      card.style.transform = `translateY(${dy}px)`;
+      e.preventDefault();
+    } else if (dy < -4) {
+      resetSheet();                              // pulling up — abandon dismiss, restore scroll
+    }
+  });
+  card.addEventListener("pointerup", () => {
+    if (sheetStartY === null) return;
+    const dy = sheetDragging ? parseFloat(card.style.transform.replace(/[^0-9.\-]/g, "")) || 0 : 0;
+    const dismiss = sheetDragging && dy > 110;
+    resetSheet();
+    if (dismiss) closeCard();
+  });
+  card.addEventListener("pointercancel", resetSheet);
 
   /* ---- controls: surprise · threatened filter · stat line -------- */
   const total = PENGUINS.length;

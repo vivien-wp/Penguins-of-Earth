@@ -13,6 +13,7 @@ function GlobeEngine(canvas, opts) {
   const colonies = opts.colonies;           // [{lat,lon,id,name,species}]
   const onPick = opts.onPick || (() => {});
   const onHover = opts.onHover || (() => {});
+  const onView = opts.onView || (() => {});          // fired when zoom/focus (non-overview) changes
 
   let W = 0, H = 0, dpr = 1, cx = 0, cy = 0, R = 0;
   let yaw = -60 * DEG, pitch = 12 * DEG;     // start over the Southern Ocean
@@ -125,6 +126,7 @@ function GlobeEngine(canvas, opts) {
     zoom = nz; R = baseR * zoom;
     if (zoom <= 1.001) { zoom = 1; R = baseR; panX = 0; panY = 0; }
     clampPan();
+    onView(zoom > 1.01 || !!focused);
   }
 
   // a "you are here" target reticle — pulsing ping + crosshair + label
@@ -420,10 +422,13 @@ function GlobeEngine(canvas, opts) {
     const rect = canvas.getBoundingClientRect();
     applyZoom(zoom * Math.pow(1.0016, -e.deltaY), e.clientX - rect.left, e.clientY - rect.top);
   }
-  function onDbl(e) {                                   // double-tap / click toggles zoom (and exits locator)
+  function onDbl(e) {                                   // double-tap: on a marker = locate it; on empty = toggle zoom
     const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left, py = e.clientY - rect.top;
+    const hit = hitTest(px, py);
+    if (hit >= 0) { onPick(colonies[hit]); return; }   // never zoom OUT when tapping a circle
     if (focused || zoom > 1.05) clearFocus();
-    else applyZoom(2.4, e.clientX - rect.left, e.clientY - rect.top);
+    else applyZoom(2.4, px, py);
   }
 
   /* ---- public: fly the globe to a lat/lon ----------------------- */
@@ -437,6 +442,7 @@ function GlobeEngine(canvas, opts) {
       fromZoom: zoom, toZoom: 2.4,
     };
     targetT = 0;
+    onView(true);
   }
   // exit locator mode: drop the reticle and ease back out to the overview
   function clearFocus() {
@@ -446,6 +452,7 @@ function GlobeEngine(canvas, opts) {
       fromZoom: zoom, toZoom: 1,
     };
     targetT = 0;
+    onView(false);
   }
 
   function setTheme() { colours = readColours(); }

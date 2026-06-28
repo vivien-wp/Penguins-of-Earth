@@ -227,6 +227,22 @@ body {
 }
 .card-close:hover { border-color: var(--accent); color: var(--accent); }
 
+/* drag handle for the mobile bottom sheet (shown only on mobile) */
+.card-grab { display: none; }
+
+/* return-to-overview button — appears only when zoomed or located */
+.reset-view {
+  display: none; position: fixed; left: clamp(16px, 3vw, 30px); top: 50%; transform: translateY(-50%);
+  z-index: 30; font-family: inherit; font-size: 11px; font-weight: 500;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg);
+  background: var(--bg); border: 1px solid var(--line-glow);
+  padding: 10px 16px; border-radius: 999px; cursor: pointer; align-items: center; gap: 8px;
+  transition: border-color 0.25s var(--ease), color 0.25s var(--ease);
+}
+.reset-view.show { display: inline-flex; }
+.reset-view:hover { border-color: var(--accent); color: var(--accent); }
+.reset-view i { font-style: normal; font-size: 14px; }
+
 .card h2 { font-size: clamp(26px, 4vw, 34px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; }
 .card .binom { font-size: 13px; color: var(--accent); font-weight: 300; font-style: italic; margin-top: 4px; }
 .card .index-no { font-size: 11px; color: var(--fg-faint); letter-spacing: 0.2em; margin-bottom: 10px; }
@@ -313,6 +329,12 @@ body {
   }
   .card.open { transform: translateY(0); }
   .card-figure { aspect-ratio: 4 / 3; }
+
+  .card-grab {
+    display: block; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 44px; height: 5px; border-radius: 3px; background: var(--mist);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); opacity: 0.9; z-index: 6; pointer-events: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
