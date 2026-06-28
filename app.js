@@ -49,15 +49,29 @@
   // theme is applied after globe exists so setTheme() can run
   applyTheme(localStorage.getItem("globe-theme") || "dark");
 
-  /* ---- species quick-nav ---------------------------------------- */
+  /* ---- species quick-nav (a slide-up menu on mobile) ------------ */
   const nav = $("#speciesNav");
+  const speciesToggle = $("#speciesToggle");
+  function openMenu() {
+    nav.classList.add("open");
+    speciesToggle.setAttribute("aria-expanded", "true");
+    speciesToggle.querySelector("span").textContent = "Close";
+  }
+  function closeMenu() {
+    nav.classList.remove("open");
+    speciesToggle.setAttribute("aria-expanded", "false");
+    speciesToggle.querySelector("span").textContent = "Species";
+  }
+  speciesToggle.addEventListener("click", () => {
+    nav.classList.contains("open") ? closeMenu() : openMenu();
+  });
   PENGUINS.forEach((sp) => {
     const b = document.createElement("button");
     b.textContent = sp.name;
     b.setAttribute("aria-label", `Show ${sp.name} penguin and locate it on the globe`);
     b.dataset.id = sp.id;
     if (sp.id === potd.id) b.classList.add("today");
-    b.addEventListener("click", () => openCard(sp.id));
+    b.addEventListener("click", () => { openCard(sp.id); if (isMobile()) closeMenu(); });
     // hover / focus a pill → draw a leader line from it to that species' colonies
     const hi = () => {
       const r = b.getBoundingClientRect();
@@ -122,6 +136,8 @@
       </div>`;
 
     card.classList.add("open");
+    document.documentElement.classList.add("card-open");
+    if (isMobile()) closeMenu();
     card.scrollTop = 0;
 
     // highlight nav
@@ -151,6 +167,7 @@
 
   function closeCard() {
     card.classList.remove("open");
+    document.documentElement.classList.remove("card-open");
     activeId = null;
     history.replaceState(null, "", location.pathname + location.search);
     nav.querySelectorAll("button").forEach((b) => b.classList.remove("active"));

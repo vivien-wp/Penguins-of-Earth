@@ -24,7 +24,7 @@
       <div class="brand">
         <div class="kicker">Project · Globe</div>
         <h1>Penguins of Earth</h1>
-        <div class="sub">A dotted planet charting where penguins live. <b>Drag to spin · tap a marker.</b></div>
+        <div class="sub">A dotted planet charting where penguins live. <b>Drag to spin · pinch / scroll to zoom · tap a marker.</b></div>
         <div class="stat-line" id="statLine">18 species · 53 colonies</div>
         <button class="potd" id="potd" aria-label="Open today's penguin"></button>
       </div>
@@ -49,6 +49,9 @@
       <div class="row"><span class="mk alert"></span><span>Endangered — <b>pulses faster, double ring</b></span></div>
     </div>
 
+    <button class="species-toggle" id="speciesToggle" aria-expanded="false" aria-controls="speciesNav">
+      <i>☰</i> <span>Species</span>
+    </button>
     <nav class="species-nav" id="speciesNav" aria-label="Penguin species"></nav>
 
     <div class="boot" id="boot">booting orbital survey…</div>

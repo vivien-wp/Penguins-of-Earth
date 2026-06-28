@@ -29,6 +29,9 @@ function GlobeEngine(canvas, opts) {
   const reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   let spinMult = 1;                          // rotation speed: 0 paused · 1 normal
   let highlightId = null, highlightAnchor = null;   // species leader-line / emphasis
+  let zoom = 1, baseR = 0, panX = 0, panY = 0;      // pinch / scroll zoom + focal pan
+  const pointers = new Map();                        // active touch points (for pinch)
+  let pinchDist = 0;
 
   /* ---- land dots from mask --------------------------------------- */
   function decodeMask() {
@@ -100,8 +103,27 @@ function GlobeEngine(canvas, opts) {
     canvas.width = W * dpr; canvas.height = H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cx = W / 2; cy = H / 2;
-    R = Math.min(W, H) * (W < 640 ? 0.42 : 0.36);
+    baseR = Math.min(W, H) * (W < 640 ? 0.42 : 0.36);
+    R = baseR * zoom;
+    clampPan();
     genStars();
+  }
+
+  function clampPan() {
+    const m = R * 0.92;
+    panX = Math.max(-m, Math.min(m, panX));
+    panY = Math.max(-m, Math.min(m, panY));
+  }
+  // zoom toward a screen point so that point stays put under the finger / cursor
+  function applyZoom(nz, fx, fy) {
+    nz = Math.max(1, Math.min(4, nz));
+    if (nz === zoom) return;
+    const centerX = cx + panX, centerY = cy + panY, k = nz / zoom;
+    panX += (fx - centerX) * (1 - k);
+    panY += (fy - centerY) * (1 - k);
+    zoom = nz; R = baseR * zoom;
+    if (zoom <= 1.001) { zoom = 1; R = baseR; panX = 0; panY = 0; }
+    clampPan();
   }
 
   /* ---- rotate a unit vector by yaw (Y) then pitch (X) ------------ */
@@ -113,7 +135,7 @@ function GlobeEngine(canvas, opts) {
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
     const y2 = y * cp - z * sp;
     const z2 = y * sp + z * cp;
-    return { sx: cx + R * x, sy: cy - R * y2, depth: z2 };  // depth>0 = front
+    return { sx: cx + panX + R * x, sy: cy + panY - R * y2, depth: z2 };  // depth>0 = front
   }
 
   /* ---- main draw ------------------------------------------------- */
@@ -121,12 +143,13 @@ function GlobeEngine(canvas, opts) {
     ctx.clearRect(0, 0, W, H);
 
     const dark = isDark();
+    const ccx = cx + panX, ccy = cy + panY;
 
     // starfield — only at night (the void), never over the globe disk
     if (dark) {
       const rin = (R * 1.04) * (R * 1.04);
       for (let i = 0; i < stars.length; i++) {
-        const s = stars[i], dx = s.x - cx, dy = s.y - cy;
+        const s = stars[i], dx = s.x - ccx, dy = s.y - ccy;
         if (dx * dx + dy * dy < rin) continue;
         ctx.fillStyle = rgb(colours.fg, s.a);
         ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 7); ctx.fill();
@@ -138,17 +161,17 @@ function GlobeEngine(canvas, opts) {
     const sunX = ctilt * Math.cos(sunAngle), sunY = stilt, sunZ = ctilt * Math.sin(sunAngle);
 
     // the one permitted gradient: a faint sphere vignette for roundness
-    const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 1.02);
+    const g = ctx.createRadialGradient(ccx, ccy, R * 0.2, ccx, ccy, R * 1.02);
     g.addColorStop(0, rgb(colours.accent, 0.05));
     g.addColorStop(0.72, rgb(colours.accent, 0.015));
     g.addColorStop(1, rgb(colours.fg, 0));
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(cx, cy, R * 1.02, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(ccx, ccy, R * 1.02, 0, 7); ctx.fill();
 
     // limb (sphere outline)
     ctx.strokeStyle = rgb(colours.accent, 0.22);
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(ccx, ccy, R, 0, Math.PI * 2); ctx.stroke();
 
     // land dots
     for (let i = 0; i < dots.length; i++) {
@@ -284,14 +307,35 @@ function GlobeEngine(canvas, opts) {
   }
 
   function onDown(e) {
-    dragging = true; target = null;
-    canvas.classList.add("dragging");
-    lastX = e.clientX; lastY = e.clientY; lastMoveT = Date.now();
-    yawVel = 0;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+    if (pointers.size === 1) {
+      dragging = true; target = null;
+      canvas.classList.add("dragging");
+      lastX = e.clientX; lastY = e.clientY; lastMoveT = Date.now();
+      yawVel = 0;
+    } else if (pointers.size === 2) {                  // second finger → start pinch
+      dragging = false; canvas.classList.remove("dragging");
+      const p = [...pointers.values()];
+      pinchDist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+    }
   }
   function onMove(e) {
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const rect = canvas.getBoundingClientRect();
+
+    if (pointers.size >= 2) {                           // two fingers → pinch zoom
+      const p = [...pointers.values()];
+      const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      if (pinchDist > 0) {
+        const fx = (p[0].x + p[1].x) / 2 - rect.left;
+        const fy = (p[0].y + p[1].y) / 2 - rect.top;
+        applyZoom(zoom * (d / pinchDist), fx, fy);
+      }
+      pinchDist = d;
+      return;
+    }
+
     const px = e.clientX - rect.left, py = e.clientY - rect.top;
     if (dragging) {
       const dx = e.clientX - lastX, dy = e.clientY - lastY;
@@ -313,11 +357,13 @@ function GlobeEngine(canvas, opts) {
     }
   }
   function onUp(e) {
-    if (dragging) {
-      dragging = false;
-      canvas.classList.remove("dragging");
-      const rect = canvas.getBoundingClientRect();
-      const moved = Math.abs(e.clientX - (rect.left + lastX)) ;
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchDist = 0;
+    if (pointers.size === 1) {                          // one finger left → resume rotate cleanly
+      const p = [...pointers.values()][0];
+      dragging = true; lastX = p.x; lastY = p.y; lastMoveT = Date.now();
+    } else if (pointers.size === 0) {
+      dragging = false; canvas.classList.remove("dragging");
     }
   }
   function onClick(e) {
@@ -325,10 +371,19 @@ function GlobeEngine(canvas, opts) {
     const hit = hitTest(e.clientX - rect.left, e.clientY - rect.top);
     if (hit >= 0) onPick(colonies[hit]);
   }
+  function onWheel(e) {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    applyZoom(zoom * Math.pow(1.0016, -e.deltaY), e.clientX - rect.left, e.clientY - rect.top);
+  }
+  function onDbl(e) {                                   // double-tap / click toggles zoom
+    const rect = canvas.getBoundingClientRect();
+    applyZoom(zoom > 1.05 ? 1 : 2.4, e.clientX - rect.left, e.clientY - rect.top);
+  }
 
   /* ---- public: fly the globe to a lat/lon ----------------------- */
   function flyTo(lat, lon) {
-    const toYaw = -lon * DEG - Math.PI / 2 + Math.PI;   // bring lon to front
+    zoom = 1; panX = 0; panY = 0; R = baseR;            // reset zoom so the fly stays centred
     target = {
       fromYaw: yaw, toYaw: -lon * DEG - Math.PI / 2,
       fromPitch: pitch, toPitch: Math.max(-1.0, Math.min(1.0, -lat * DEG * 0.6)),
@@ -345,7 +400,10 @@ function GlobeEngine(canvas, opts) {
   canvas.addEventListener("pointerdown", onDown);
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
   canvas.addEventListener("click", onClick);
+  canvas.addEventListener("wheel", onWheel, { passive: false });
+  canvas.addEventListener("dblclick", onDbl);
   window.addEventListener("resize", () => { resize(); });
 
   resize();

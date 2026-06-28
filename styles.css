@@ -162,6 +162,17 @@ body {
 .species-nav button.today::before { content: "★ "; color: var(--accent); }
 .species-nav button.today.active::before { color: var(--bg); }
 
+/* species menu toggle — hidden on desktop, the only entry point on mobile */
+.species-toggle {
+  display: none;
+  font-family: inherit; font-size: 12px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--fg); background: var(--surface); border: 1px solid var(--line);
+  padding: 11px 18px; border-radius: 999px; cursor: pointer; align-items: center; gap: 8px;
+  transition: border-color 0.25s var(--ease), color 0.25s var(--ease);
+}
+.species-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.species-toggle i { font-style: normal; font-size: 13px; }
+
 /* ---------- hover tooltip on globe ----------------------------- */
 .tip {
   position: fixed; z-index: 30; pointer-events: none;
@@ -271,7 +282,28 @@ body {
   .ctrl-btn, .theme-btn { padding: 8px 11px; letter-spacing: 0.1em; }
   .legend { display: none; }
   .boot { display: none; }
-  .species-nav { max-width: 92vw; left: 12px; right: 12px; justify-content: center; bottom: 14px; }
+
+  .species-toggle {
+    display: inline-flex;
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 50; background: var(--bg);
+  }
+  .card-open .species-toggle { opacity: 0; pointer-events: none; }
+
+  .species-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 45;
+    max-width: none; max-height: 64vh; overflow-y: auto;
+    justify-content: flex-start; gap: 9px;
+    background: var(--bg); border-top: 1px solid var(--line); border-radius: 18px 18px 0 0;
+    padding: 44px 16px calc(78px + env(safe-area-inset-bottom));
+    transform: translateY(110%); transition: transform 0.45s var(--ease);
+  }
+  .species-nav.open { transform: translateY(0); }
+  .species-nav::before {
+    content: "Tap a penguin to explore";
+    position: absolute; top: 16px; left: 16px;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-faint);
+  }
 
   .card {
     width: 100%; height: 86vh; top: auto; bottom: 0; border-left: none;
